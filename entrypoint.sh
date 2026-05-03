@@ -5,17 +5,18 @@ AUDIT_LOG="/var/log/coraza/audit.log"
 
 # === Syslog Forwarder ===
 forward_logs() {
-  LAST_POS=0
+  LAST_SIZE=0
   while true; do
-    CURR_POS=$(wc -c < "$AUDIT_LOG")
-    if [ "$CURR_POS" -gt "$LAST_POS" ]; then
-      dd if="$AUDIT_LOG" bs=1 skip="$LAST_POS" 2>/dev/null | \
+    CURR_SIZE=$(stat -c %s "$AUDIT_LOG" 2>/dev/null || echo 0)
+    if [ "$CURR_SIZE" -gt "$LAST_SIZE" ]; then
+      BYTES_NEW=$((CURR_SIZE - LAST_SIZE))
+      tail -c "$BYTES_NEW" "$AUDIT_LOG" | \
         while IFS= read -r line; do
           [ -n "$line" ] && printf '%s\n' "$line" | socat - UDP-SENDTO:"${SYSLOG_TARGET}" 2>/dev/null
         done
-      LAST_POS=$CURR_POS
-    elif [ "$CURR_POS" -lt "$LAST_POS" ]; then
-      LAST_POS=0
+      LAST_SIZE=$CURR_SIZE
+    elif [ "$CURR_SIZE" -lt "$LAST_SIZE" ]; then
+      LAST_SIZE=0
     fi
     sleep 1
   done
