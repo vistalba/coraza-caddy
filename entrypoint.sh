@@ -5,8 +5,10 @@ AUDIT_LOG="/var/log/coraza/audit.log"
 touch "$AUDIT_LOG"
 
 if [ -n "$SYSLOG_TARGET" ]; then
-  # Forward to Graylog via UDP
-  tail -F "$AUDIT_LOG" | socat - UDP-SENDTO:"${SYSLOG_TARGET}" &
+  # Forward each line as individual UDP packet (avoids pipe buffering)
+  tail -F "$AUDIT_LOG" | while IFS= read -r line; do
+    printf '%s\n' "$line" | socat - UDP-SENDTO:"${SYSLOG_TARGET}"
+  done &
 else
   # Fallback: stdout (kubectl logs)
   tail -F "$AUDIT_LOG" &
